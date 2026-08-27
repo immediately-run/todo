@@ -1,6 +1,13 @@
-# Working in this repo
+# Working in this repo — Todo
 
-This is an **immediately.run app**: React + TypeScript that loads from GitHub and
+This is **Todo**, an immediately.run example app: lists and tasks stored as one
+JSON file per record on the immediately.run filesystem, private by default and
+optionally shared through a space. Layout: `src/lib/` (store, repo, pure
+helpers), `src/hooks/` (`useTodo` = all data + sharing, `useFocusTimer` =
+Pomodoro), `src/components/` (one component per file). See `README.md` for the
+on-disk format.
+
+It is also an **immediately.run app**: React + TypeScript that loads from GitHub and
 transpiles in the browser (no server, no build step at runtime). Keep the rules
 below or the app breaks *only* on immediately.run while still looking fine in
 local `vite dev` — the most common silent failure.
