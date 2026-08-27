@@ -57,6 +57,34 @@ const describe = (e: unknown): string => {
 };
 const isCancelled = (e: unknown) => !!e && typeof e === 'object' && (e as { code?: string }).code === 'cancelled';
 
+interface Boot {
+  priv: Bucket;
+  shared: Bucket | null;
+  config: Config;
+  notice: string | null;
+}
+
+let bootOnce: Promise<Boot> | null = null;
+
+async function boot(me: () => string): Promise<Boot> {
+  const store = await openPrivateStore('data');
+  const config = await readJson<Config>(`${store.root}/${CONFIG}`, {});
+  let snap = await loadSnapshot(store);
+  if (snap.lists.length === 0 && !config.seeded && store.mode === 'rw') {
+    snap = await seedSample(store, me(), todayIso());
+    config.seeded = true;
+    await writeJson(`${store.root}/${CONFIG}`, config);
+  }
+  let shared: Bucket | null = null;
+  let notice: string | null = null;
+  if (config.shared) {
+    const s = await openRememberedSpace(config.shared.spaceId, SHARED_SUB);
+    if (s) shared = { store: s, ...(await loadSnapshot(s)) };
+    else notice = `Couldn't reopen the shared space "${config.shared.name ?? config.shared.spaceId}". Open it again from Sharing.`;
+  }
+  return { priv: { store, ...snap }, shared, config, notice };
+}
+
 export function useTodo() {
   const auth = useAuth();
   const me = auth.user?.login || 'someone';
@@ -106,38 +134,31 @@ export function useTodo() {
   );
 
   // ── boot ────────────────────────────────────────────────────────────────────
+  // Boot is memoised at module level: React StrictMode (and Fast Refresh) can run
+  // this effect twice, and two concurrent boots would both see an empty store and
+  // both seed it — duplicating the Inbox.
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      const store = await openPrivateStore('data');
-      const cfg = await readJson<Config>(`${store.root}/${CONFIG}`, {});
-      let snap = await loadSnapshot(store);
-      if (snap.lists.length === 0 && !cfg.seeded && store.mode === 'rw') {
-        snap = await seedSample(store, meRef.current, todayIso());
-        cfg.seeded = true;
-        await writeJson(`${store.root}/${CONFIG}`, cfg);
-      }
-      let sharedBucket: Bucket | null = null;
-      let sharedNotice: string | null = null;
-      if (cfg.shared) {
-        const s = await openRememberedSpace(cfg.shared.spaceId, SHARED_SUB);
-        if (s) sharedBucket = { store: s, ...(await loadSnapshot(s)) };
-        else sharedNotice = `Couldn't reopen the shared space "${cfg.shared.name ?? cfg.shared.spaceId}". Open it again from Sharing.`;
-      }
-      if (cancelled) return;
-      privRef.current = { store, ...snap };
-      sharedRef.current = sharedBucket;
-      configRef.current = cfg;
-      setPriv(privRef.current);
-      setShared(sharedBucket);
-      setConfig(cfg);
-      if (sharedNotice) setNotice(sharedNotice);
-      setStatus('ready');
-    })().catch((e) => {
-      if (cancelled) return;
-      setError(describe(e));
-      setStatus('error');
-    });
+    bootOnce ??= boot(() => meRef.current);
+    bootOnce.then(
+      (b) => {
+        if (cancelled) return;
+        privRef.current = b.priv;
+        sharedRef.current = b.shared;
+        configRef.current = b.config;
+        setPriv(b.priv);
+        setShared(b.shared);
+        setConfig(b.config);
+        if (b.notice) setNotice(b.notice);
+        setStatus('ready');
+      },
+      (e) => {
+        if (cancelled) return;
+        bootOnce = null;
+        setError(describe(e));
+        setStatus('error');
+      },
+    );
     return () => {
       cancelled = true;
     };
@@ -154,8 +175,18 @@ export function useTodo() {
         if (alive) setShared((b) => (b && b.store === sharedStore ? { ...b, ...snap } : b));
       });
     const stops = [pollDir(tasksDir(sharedStore), reload, POLL_MS), pollDir(listsDir(sharedStore), reload, POLL_MS)];
+    // pollDir only reports changes relative to its first successful read, so
+    // anything written between our snapshot and that baseline would be missed:
+    // catch up once the baseline exists, and whenever the tab comes back.
+    const catchUp = setTimeout(reload, POLL_MS + 500);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') reload();
+    };
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       alive = false;
+      clearTimeout(catchUp);
+      document.removeEventListener('visibilitychange', onVisible);
       stops.forEach((stop) => stop());
     };
   }, [sharedStore, enqueue]);
