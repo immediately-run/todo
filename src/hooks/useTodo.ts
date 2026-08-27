@@ -87,12 +87,6 @@ async function boot(me: () => string): Promise<Boot> {
 
 export function useTodo() {
   const auth = useAuth();
-  const me = auth.user?.login || 'someone';
-  const meRef = useRef(me);
-  useEffect(() => {
-    meRef.current = me;
-  }, [me]);
-
   const [status, setStatus] = useState<'booting' | 'ready' | 'error'>('booting');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -100,6 +94,13 @@ export function useTodo() {
   const [priv, setPriv] = useState<Bucket | null>(null);
   const [shared, setShared] = useState<Bucket | null>(null);
   const [config, setConfig] = useState<Config>({});
+  // Who new records are signed as: the host's login, else the name the user
+  // typed in Sharing (the host reports no user to stage apps), else "someone".
+  const me = auth.user?.login || config.displayName?.trim() || 'someone';
+  const meRef = useRef(me);
+  useEffect(() => {
+    meRef.current = me;
+  }, [me]);
 
   // Mirrors for use inside async callbacks without re-creating them on every render.
   const privRef = useRef<Bucket | null>(null);
@@ -371,6 +372,16 @@ export function useTodo() {
     [saveConfig],
   );
 
+  const setDisplayName = useCallback(
+    (name: string) => {
+      const displayName = name.trim();
+      const { displayName: _old, ...rest } = configRef.current;
+      void _old;
+      saveConfig(displayName ? { ...rest, displayName } : rest);
+    },
+    [saveConfig],
+  );
+
   /** Forget the shared space. Nothing is deleted; the files stay in the space. */
   const disconnectShared = useCallback(() => {
     sharedRef.current = null;
@@ -434,6 +445,8 @@ export function useTodo() {
     dismissNotice: useCallback(() => setNotice(null), []),
     busy,
     me,
+    displayName: config.displayName ?? '',
+    setDisplayName,
     lists,
     tasks,
     sharedInfo,

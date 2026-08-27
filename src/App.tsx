@@ -148,6 +148,7 @@ function App() {
           today={today}
           writable={writableFor(selected.scope)}
           focusing={timer.taskId === selected.id}
+          running={timer.running}
           onUpdate={(patch) => todo.updateTask(selected.id, patch)}
           onMove={(listId) => todo.moveTask(selected.id, listId)}
           onDelete={() => {
@@ -155,6 +156,8 @@ function App() {
             setSelectedId(null);
           }}
           onFocus={() => timer.start(selected.id)}
+          onPause={timer.pause}
+          onResume={timer.resume}
           onClose={() => setSelectedId(null)}
         />
       )}
@@ -163,6 +166,8 @@ function App() {
         <SharingMenu
           shared={todo.sharedInfo}
           busy={todo.busy}
+          name={todo.displayName}
+          onName={todo.setDisplayName}
           onConnect={(how) => {
             setSharingOpen(false);
             void todo.connectShared(how);

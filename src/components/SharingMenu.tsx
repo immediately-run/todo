@@ -1,20 +1,44 @@
+import { useState } from 'react';
 import type { SharedInfo, ShareHow } from '../hooks/useTodo';
 import Icon from './Icon';
 
 interface Props {
   shared: SharedInfo | null;
   busy: boolean;
+  /** Name new tasks are signed with (see Config.displayName); '' when unset. */
+  name: string;
+  onName: (name: string) => void;
   onConnect: (how: ShareHow) => void;
   onDisconnect: () => void;
   onClose: () => void;
 }
 
-/** Popover behind the "Sharing" chip in the top bar: connect / forget a space. */
-function SharingMenu({ shared, busy, onConnect, onDisconnect, onClose }: Props) {
+/** Popover behind the "Sharing" chip in the top bar: connect / forget a space,
+ *  and the name other members see on your tasks. */
+function SharingMenu({ shared, busy, name, onName, onConnect, onDisconnect, onClose }: Props) {
+  const [draft, setDraft] = useState(name);
+  const commitName = () => {
+    if (draft.trim() !== name) onName(draft);
+  };
   return (
     <>
       <div className="scrim scrim-light" onClick={onClose} />
       <div className="popover" role="dialog" aria-label="Sharing">
+        <label className="field">
+          <span className="fieldlabel">Your name</span>
+          <input
+            type="text"
+            className="nameinput"
+            value={draft}
+            placeholder="Shown next to tasks you add"
+            maxLength={40}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commitName}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+            }}
+          />
+        </label>
         {shared ? (
           <>
             <h3>

@@ -203,12 +203,12 @@
 .field { display: flex; flex-direction: column; gap: 6px; }
 .fieldlabel { font: 400 12px/1 var(--mono); color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; }
 .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.detail select, .detail input[type="date"], .detail textarea {
+.nameinput, .detail select, .detail input[type="date"], .detail textarea {
   min-height: 44px; padding: 10px 12px; border-radius: var(--r-md); border: 1px solid var(--line-2);
   background: var(--bg); color: var(--ink); font: 400 15px/1.4 var(--sans); outline: none; max-width: 100%;
 }
 .detail textarea { resize: vertical; font-family: var(--sans); }
-.detail select:focus, .detail input[type="date"]:focus, .detail textarea:focus { border-color: var(--accent-2); }
+.nameinput:focus, .detail select:focus, .detail input[type="date"]:focus, .detail textarea:focus { border-color: var(--accent-2); }
 .detail input[type="date"] { color-scheme: dark; }
 html[data-theme="light"] .detail input[type="date"] { color-scheme: light; }
 .stamp { margin-top: -4px; }
@@ -257,5 +257,8 @@ html[data-theme="light"] .detail input[type="date"] { color-scheme: light; }
     left: auto; top: 0; bottom: 0; width: 400px; max-height: none;
     border-radius: var(--r-xl) 0 0 var(--r-xl); padding: 20px 22px 32px;
   }
-  .focusbar { left: 50%; right: auto; transform: translateX(-50%); width: min(560px, calc(100vw - 24px)); }
+  /* Above the task-detail scrim (z 20): the side panel sits to the right, the bar
+     stays centred, so its Pause/Stop keep working while a task is open. On a phone
+     the sheet covers the bottom, so the bar stays under the scrim there. */
+  .focusbar { left: 50%; right: auto; transform: translateX(-50%); width: min(560px, calc(100vw - 24px)); z-index: 22; }
 }

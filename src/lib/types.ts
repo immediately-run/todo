@@ -39,6 +39,9 @@ export interface Config {
   seeded?: boolean;
   /** The shared space to re-open at boot (granted via the host powerbox). */
   shared?: { spaceId: string; name?: string };
+  /** Name to sign new records with when the host reports no user (stage apps
+   *  get `user: null` from `useAuth`, so this is what other members see). */
+  displayName?: string;
 }
 
 export type ViewId = 'today' | 'all' | `list:${string}`;

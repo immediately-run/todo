@@ -10,10 +10,14 @@ interface Props {
   today: string;
   writable: boolean;
   focusing: boolean;
+  /** Timer state while `focusing`; the Focus button then pauses/resumes instead of restarting. */
+  running: boolean;
   onUpdate: (patch: Partial<Omit<Task, 'id' | 'createdAt' | 'by'>>) => void;
   onMove: (listId: string) => void;
   onDelete: () => void;
   onFocus: () => void;
+  onPause: () => void;
+  onResume: () => void;
   onClose: () => void;
 }
 
@@ -25,7 +29,7 @@ const PRIORITIES: Array<[Priority, string]> = [
 
 /** Side panel (desktop) / bottom sheet (mobile) editing one task. Mount with
  *  `key={task.id}` so drafts reset when the selection changes. */
-function TaskDetail({ task, lists, today, writable, focusing, onUpdate, onMove, onDelete, onFocus, onClose }: Props) {
+function TaskDetail({ task, lists, today, writable, focusing, running, onUpdate, onMove, onDelete, onFocus, onPause, onResume, onClose }: Props) {
   const [title, setTitle] = useState(task.title);
   const [note, setNote] = useState(task.note ?? '');
   const [confirming, setConfirming] = useState(false);
@@ -133,8 +137,14 @@ function TaskDetail({ task, lists, today, writable, focusing, onUpdate, onMove, 
         <div className="field">
           <span className="fieldlabel">Focus</span>
           <div className="row">
-            <button type="button" className="btn btn-primary btn-sm" disabled={task.done} onClick={onFocus}>
-              <Icon name={focusing ? 'timer' : 'play'} size={14} /> {focusing ? 'Timer running' : 'Start 25 min'}
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={task.done && !focusing}
+              onClick={focusing ? (running ? onPause : onResume) : onFocus}
+            >
+              <Icon name={focusing ? (running ? 'pause' : 'play') : 'play'} size={14} />{' '}
+              {focusing ? (running ? 'Pause' : 'Resume') : 'Start 25 min'}
             </button>
             <span className="muted small">
               {sessions === 0 ? 'No sessions yet' : `${sessions} session${sessions === 1 ? '' : 's'} logged in the note`}
