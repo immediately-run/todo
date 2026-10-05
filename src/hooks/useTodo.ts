@@ -175,7 +175,7 @@ export function useTodo() {
         const snap = await loadSnapshot(sharedStore);
         if (alive) setShared((b) => (b && b.store === sharedStore ? { ...b, ...snap } : b));
       });
-    // R3-901: ONE recursive watch on the store root replaces the two per-dir
+    // One recursive watch on the store root replaces the two per-dir
     // pollDir loops (the relay reports the changed path; the reload stays
     // wholesale + idempotent). A watch only reports writes AFTER it starts, so
     // the one-shot catch-up and the visibility reload stay — anything written
