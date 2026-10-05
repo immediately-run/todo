@@ -11,19 +11,17 @@ import {
   openPrivateStore,
   openRememberedSpace,
   pickSharedStore,
-  pollDir,
+  watchDir,
   readJson,
   writeJson,
 } from '../lib/store';
 import {
   deleteListFile,
   deleteTaskFile,
-  listsDir,
   loadSnapshot,
   moveList,
   moveTask as moveTaskFiles,
   seedSample,
-  tasksDir,
   writeList,
   writeTask,
 } from '../lib/repo';
@@ -175,10 +173,12 @@ export function useTodo() {
         const snap = await loadSnapshot(sharedStore);
         if (alive) setShared((b) => (b && b.store === sharedStore ? { ...b, ...snap } : b));
       });
-    const stops = [pollDir(tasksDir(sharedStore), reload, POLL_MS), pollDir(listsDir(sharedStore), reload, POLL_MS)];
-    // pollDir only reports changes relative to its first successful read, so
-    // anything written between our snapshot and that baseline would be missed:
-    // catch up once the baseline exists, and whenever the tab comes back.
+    // R3-901: ONE recursive watch on the store root replaces the two per-dir
+    // pollDir loops (the relay reports the changed path; the reload stays
+    // wholesale + idempotent). A watch only reports writes AFTER it starts, so
+    // the one-shot catch-up and the visibility reload stay — anything written
+    // between our snapshot and the watch's start is caught by them.
+    const stop = watchDir(sharedStore.root, reload);
     const catchUp = setTimeout(reload, POLL_MS + 500);
     const onVisible = () => {
       if (document.visibilityState === 'visible') reload();
@@ -188,7 +188,7 @@ export function useTodo() {
       alive = false;
       clearTimeout(catchUp);
       document.removeEventListener('visibilitychange', onVisible);
-      stops.forEach((stop) => stop());
+      stop();
     };
   }, [sharedStore, enqueue]);
 
