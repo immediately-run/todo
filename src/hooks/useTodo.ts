@@ -1,7 +1,7 @@
 // All app state lives here: a private bucket (always) plus an optional shared
 // bucket (a space the user granted). Every mutation updates memory first, then
 // writes exactly one file through a serial queue, so reads that follow (the
-// shared-dir poll) never observe a half-applied change.
+// shared-dir watch's reload) never observe a half-applied change.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@immediately-run/sdk/auth';
 import type { Store } from '../lib/store';
@@ -43,7 +43,9 @@ export interface SharedInfo {
 }
 
 const SHARED_SUB = 'todo';
-const POLL_MS = 3000;
+// One-shot catch-up delay after mount: covers anything written between the
+// snapshot load and the watch's start (a watch only reports later writes).
+const CATCH_UP_MS = 3500;
 const CONFIG = 'config.json';
 
 const describe = (e: unknown): string => {
@@ -163,7 +165,7 @@ export function useTodo() {
     };
   }, []);
 
-  // ── shared-space polling (other members' writes never raise watch events) ──
+  // ── shared-space live updates (the host's watch relay) ──
   const sharedStore = shared?.store ?? null;
   useEffect(() => {
     if (!sharedStore) return;
@@ -179,7 +181,7 @@ export function useTodo() {
     // the one-shot catch-up and the visibility reload stay — anything written
     // between our snapshot and the watch's start is caught by them.
     const stop = watchDir(sharedStore.root, reload);
-    const catchUp = setTimeout(reload, POLL_MS + 500);
+    const catchUp = setTimeout(reload, CATCH_UP_MS);
     const onVisible = () => {
       if (document.visibilityState === 'visible') reload();
     };

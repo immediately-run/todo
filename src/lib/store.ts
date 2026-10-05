@@ -135,24 +135,47 @@ export async function removeFile(path: string): Promise<void> {
 export const newId = (): string =>
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-/** R3-901 — one recursive watch on the store root replaces the 2–4 s pollDir
- *  signature loops: the host's watch relay (R3-409) surfaces REMOTE writes as
- *  fs.promises.watch events, recursively, with the changed path. Own writes
- *  still echo locally (the callers' reload is idempotent, exactly as the
- *  poll's wholesale reload was — no byte-dedupe needed, FILESYSTEM_SPEC §2.2).
- *  Returns a stop function (aborts the loop; an abort surfaces as a rejected
- *  iteration, swallowed here). */
+/** R3-901 — one recursive watch replaces the 2–4 s pollDir signature loops:
+ *  the host's watch relay (R3-409) surfaces REMOTE writes as fs.promises.watch
+ *  events, recursively, with the changed path. Own writes still echo locally
+ *  (the callers' reload is idempotent, exactly as the poll's wholesale reload
+ *  was — no byte-dedupe needed, FILESYSTEM_SPEC §2.2).
+ *
+ *  Two platform facts shape this helper (review round 1, both reproduced):
+ *   1. ZenFS core and the sandbox relay IGNORE AbortSignal — the iterator's own
+ *      `return()` is the only stop both honour (ends the for-await; the relay
+ *      unsubscribes its listener in cleanup). So no AbortController here.
+ *   2. A recursive watch on a not-yet-created dir never fires even after the
+ *      dir appears (and non-recursive rejects ENOENT) — so create-then-watch. */
 export function watchDir(dir: string, onChange: () => void): () => void {
-  const ac = new AbortController();
+  let stopped = false;
+  let end = () => {
+    stopped = true;
+  };
   void (async () => {
+    await ensureDir(dir);
+    if (stopped) return;
+    // The ambient type says AsyncIterable (no `return`); the RUNTIME iterator
+    // (ZenFS core + dev-fs) implements it — the only stop both honour.
+    const it = fs.promises.watch(dir, { recursive: true }) as AsyncIterable<unknown> & {
+      return?: () => Promise<unknown>;
+    };
+    if (stopped) {
+      void it.return?.();
+      return;
+    }
+    end = () => {
+      stopped = true;
+      void it.return?.();
+    };
     try {
-      for await (const ev of fs.promises.watch(dir, { recursive: true, signal: ac.signal })) {
+      for await (const ev of it) {
         void ev; // the event is the signal; the reload re-reads wholesale
-        onChange();
+        if (!stopped) onChange();
       }
     } catch {
-      /* aborted on teardown, or the dir vanished */
+      /* the iterator threw (dir gone, transport died) — live updates stop */
     }
   })();
-  return () => ac.abort();
+  return () => end();
 }
