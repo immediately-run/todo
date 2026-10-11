@@ -1,3 +1,4 @@
+// R3-44 desktop repro of the branch switch
 // Root component — immediately.run renders the default export of THIS file.
 // Global CSS is imported here (not in main.tsx) because immediately.run's
 // runtime never loads main.tsx; anything the rendered tree needs must be
